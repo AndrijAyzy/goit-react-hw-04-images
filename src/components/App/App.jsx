@@ -1,5 +1,4 @@
-import { Component } from 'react';
-import { ToastContainer} from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ImageGallery from '../ImageGallery/ImageGallery';
 import Searchbar from '../Searchbar/Searchbar';
@@ -11,104 +10,88 @@ import getPictures from '../services/getPictures';
 import Error from 'components/Error/Error';
 import { notification } from 'components/Notification/Notification';
 import { welcomingMessage } from 'components/WelcomingMessage/WelcomingMessage';
+import { useState, useEffect } from 'react';
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    pictures: [],
-    page: 1,
-    totalPics: null, // total number of pictures getted from server
-    isOpen: false, // modal state
-    loading: false, // loader/spinner
-    modalImgSrc: '', // img for modal
-    error: null, // error message
-  };
-	componentDidMount() {
-		welcomingMessage();
-	
-}
-  async componentDidUpdate(_, prevState) {
-    const prevSearch = prevState.searchQuery;
-    const prevPage = prevState.page;
-    const { searchQuery, page } = this.state;
+export const App = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pictures, setPictures] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPics, seteTotalPics] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [modalImgSrc, setModalImgSrc] = useState('');
+  const [error, setError] = useState(null);
 
-    //check if there are any changes in the state (new search query or click on load more btn)
-    if (prevSearch !== searchQuery || prevPage !== page) {
-      this.setState({ loading: true });
+  useEffect(() => welcomingMessage(), []);
 
+	useEffect(() => {
+		if (!searchQuery) return;
+	  const startFetching = async () => {
+		 setLoading(true);
       try {
-        const response = await getPictures(searchQuery, page);
-        const { hits, totalHits } = response.data;
-        this.setState(prevState => ({
-          pictures: page === 1 ? hits : [...prevState.pictures, ...hits], // if btn load more has been clicked spread current pictures's array and add new pictures
-          totalPics: totalHits,
-        }));
+        const { hits, totalHits } = await getPictures(searchQuery, page);
+        setPictures(prevPictures =>
+          page === 1 ? hits : [...prevPictures, ...hits]
+        );
+        seteTotalPics(totalHits);
       } catch (error) {
-        this.setState({ error: error.message });
+        setError(error.message);
       } finally {
-        this.setState({ loading: false });
+        setLoading(false);
       }
-    }
-  }
+    };
+    startFetching();
+  }, [searchQuery, page]);
 
-  handleSerach = searchQuery => {
-    if (searchQuery === this.state.searchQuery) {
-      notification(`Images of ${searchQuery} have already been displayed.`);
+  const handleSerach = searchQueryIncoming => {
+    if (searchQueryIncoming === searchQuery) {
+      notification(
+        `Images of ${searchQueryIncoming} have already been displayed.`
+      );
       return;
     }
-    this.setState({
-      searchQuery,
-      pictures: [],
-      page: 1,
-      totalPics: null,
-      isOpen: false,
-      loading: false,
-      modalImgSrc: '',
-      error: null,
-    });
+    setSearchQuery(searchQueryIncoming);
+    setPictures([]);
+    setPage(1);
+    seteTotalPics(null);
+    setIsOpen(false);
+    setLoading(true);
+    setModalImgSrc('');
+    setError(null);
+  };
+  const onBtnClick = () => setPage(page => page + 1);
+  const onModalClose = () => setIsOpen(false);
+  const onModalOpen = ({ target: { dataset } }) => {
+    setIsOpen(true);
+    setModalImgSrc(dataset.src);
   };
 
-  onBtnClick = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
-  };
+  return (
+    <Container>
+      <Searchbar onSubmit={handleSerach} />
 
-  onModalOpen = ({ target }) => {
-    this.setState({ isOpen: true, modalImgSrc: target.dataset.src });
-  };
+      <ImageGallery pictures={pictures} onClick={onModalOpen} />
 
-  onModalClose = () => {
-    this.setState({ isOpen: false });
-  };
+      {/* for wrong query */}
+      {totalPics === 0 && (
+        <Error errorText={'Sorry, nothing has been found at your request'} />
+      )}
+      {/* for server error */}
+      {error && (
+        <Error
+          errorText={`Something went wrong... ${error}. Please try again.`}
+        />
+      )}
+      {/* loader */}
+      {loading && <Loader />}
+      {/* for displaying load more btn */}
+      {totalPics / pictures.length > page && (
+        <Button onClick={onBtnClick}></Button>
+      )}
+      {/* for displaying modal window */}
+      {isOpen && <Modal imgSrc={modalImgSrc} onClose={onModalClose} />}
+      <ToastContainer />
+    </Container>
+  );
+};
 
-  render() {
-    const { pictures, loading, totalPics, error, page, modalImgSrc, isOpen } =
-      this.state;
-    return (
-      <Container>
-        <Searchbar onSubmit={this.handleSerach} />
-
-        <ImageGallery pictures={pictures} onClick={this.onModalOpen} />
-
-        {/* for wrong query */}
-        {totalPics === 0 && (
-          <Error errorText={'Sorry, nothing has been found at your request'} />
-        )}
-        {/* for server error */}
-        {error && (
-          <Error
-            errorText={`Something went wrong... ${error}. Please try again.`}
-          />
-        )}
-        {/* loader */}
-        {loading && <Loader />}
-        {/* for displaying load more btn */}
-        {totalPics / pictures.length > page && (
-          <Button onClick={this.onBtnClick}></Button>
-        )}
-        {/* for displaying modal window */}
-        {isOpen && <Modal imgSrc={modalImgSrc} onClose={this.onModalClose} />}
-        <ToastContainer />
-      </Container>
-    );
-  }
-}
